@@ -112,7 +112,9 @@ func (r *Runner) worker(id int) {
 		//		r.mutex.Unlock()
 
 		//		r.cond.Broadcast()
+		r.mutex.Lock()
 		r.outputCond.Signal()
+		r.mutex.Unlock()
 	}
 }
 
@@ -167,8 +169,8 @@ func (r *Runner) subscribe() {
 
 		r.mutex.Lock()
 		r.pendingCount--
-		r.mutex.Unlock()
 		r.inputCond.Signal()
+		r.mutex.Unlock()
 	}
 }
 
