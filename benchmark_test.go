@@ -221,7 +221,38 @@ func Benchmark_Worker8_BufferSize2048_SlowHandler(b *testing.B) {
 
 	// Create a new runner
 	runner := NewRunner(
-		WithWorkerCount(4),
+		WithWorkerCount(8),
+		WithMaxPendingCount(2048),
+		WithWorkerHandler(func(workerID int, task interface{}) interface{} {
+			time.Sleep(1 * time.Millisecond)
+			return task
+		}),
+	)
+	defer runner.Close()
+
+	output := make(chan string, 10240)
+	runner.Subscribe(func(result interface{}) {
+		output <- result.(string)
+	})
+
+	b.ResetTimer()
+
+	go func() {
+		for n := 0; n < b.N; n++ {
+			runner.AddTask("BenchmarkContent")
+		}
+	}()
+
+	for n := 0; n < b.N; n++ {
+		<-output
+	}
+}
+
+func Benchmark_Worker16_BufferSize2048_SlowHandler(b *testing.B) {
+
+	// Create a new runner
+	runner := NewRunner(
+		WithWorkerCount(16),
 		WithMaxPendingCount(2048),
 		WithWorkerHandler(func(workerID int, task interface{}) interface{} {
 			time.Sleep(1 * time.Millisecond)

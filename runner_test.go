@@ -171,10 +171,54 @@ func TestRunner_SlowOutput(t *testing.T) {
 
 	expected := 0
 	err := runner.Subscribe(func(result interface{}) {
+		// Sequential output
 		assert.Equal(t, expected, result)
 		expected++
 		rand.Seed(time.Now().UnixNano())
 		time.Sleep(time.Duration(rand.Intn(100)) * time.Millisecond)
+		wg.Done()
+	})
+	if !assert.Nil(t, err) {
+		return
+	}
+
+	// Add a task to the runner
+	for i := 0; i < targetTaskCount; i++ {
+		wg.Add(1)
+		runner.AddTask(i)
+	}
+
+	wg.Wait()
+
+	assert.Equal(t, runner.GetPendingCount(), 0)
+	assert.Equal(t, targetTaskCount, expected)
+}
+
+func TestRunner_UnsteadyHandler_And_SlowOutput(t *testing.T) {
+
+	targetTaskCount := 4000
+
+	var wg sync.WaitGroup
+
+	// Create a new runner
+	runner := NewRunner(
+		WithWorkerCount(4),
+		WithMaxPendingCount(10),
+		WithWorkerHandler(func(workerID int, task interface{}) interface{} {
+			rand.Seed(time.Now().UnixNano())
+			time.Sleep(time.Duration(rand.Intn(10)) * time.Millisecond)
+			return task
+		}),
+	)
+	defer runner.Close()
+
+	expected := 0
+	err := runner.Subscribe(func(result interface{}) {
+		// Sequential output
+		assert.Equal(t, expected, result)
+		expected++
+		rand.Seed(time.Now().UnixNano())
+		time.Sleep(time.Duration(rand.Intn(10)) * time.Millisecond)
 		wg.Done()
 	})
 	if !assert.Nil(t, err) {
