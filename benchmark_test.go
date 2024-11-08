@@ -155,7 +155,7 @@ func Benchmark_Worker4_BufferSize10240(b *testing.B) {
 	}
 }
 
-func Benchmark_Baseline_SingleWorker_BufferSize2048_SlowHandler(b *testing.B) {
+func Benchmark_SingleWorker_BufferSize2048_SlowHandler(b *testing.B) {
 
 	// Create a new runner
 	runner := NewRunner(
@@ -186,7 +186,7 @@ func Benchmark_Baseline_SingleWorker_BufferSize2048_SlowHandler(b *testing.B) {
 	}
 }
 
-func Benchmark_Baseline_Worker4_BufferSize2048_SlowHandler(b *testing.B) {
+func Benchmark_Worker4_BufferSize2048_SlowHandler(b *testing.B) {
 
 	// Create a new runner
 	runner := NewRunner(
@@ -217,7 +217,7 @@ func Benchmark_Baseline_Worker4_BufferSize2048_SlowHandler(b *testing.B) {
 	}
 }
 
-func Benchmark_Baseline_Worker8_BufferSize2048_SlowHandler(b *testing.B) {
+func Benchmark_Worker8_BufferSize2048_SlowHandler(b *testing.B) {
 
 	// Create a new runner
 	runner := NewRunner(
@@ -248,7 +248,7 @@ func Benchmark_Baseline_Worker8_BufferSize2048_SlowHandler(b *testing.B) {
 	}
 }
 
-func Benchmark_Baseline_Worker4_BufferSize4096_SlowHandler(b *testing.B) {
+func Benchmark_Worker4_BufferSize4096_SlowHandler(b *testing.B) {
 
 	// Create a new runner
 	runner := NewRunner(

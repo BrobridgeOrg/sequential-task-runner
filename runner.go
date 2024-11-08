@@ -31,9 +31,10 @@ type Runner struct {
 	pendingTasks []interface{}
 	fn           func(interface{})
 
-	cond     *sync.Cond
-	mutex    sync.Mutex
-	isClosed bool
+	inputCond  *sync.Cond
+	outputCond *sync.Cond
+	mutex      sync.Mutex
+	isClosed   bool
 }
 
 func NewRunner(opts ...Option) *Runner {
@@ -56,7 +57,8 @@ func NewRunner(opts ...Option) *Runner {
 		isClosed:     false,
 	}
 
-	r.cond = sync.NewCond(&r.mutex)
+	r.inputCond = sync.NewCond(&r.mutex)
+	r.outputCond = sync.NewCond(&r.mutex)
 
 	return r
 }
@@ -68,7 +70,7 @@ func (r *Runner) produce(task interface{}) {
 
 	// Wait for a slot to be available
 	for r.pendingCount+1 > r.options.MaxPendingCount && !r.isClosed {
-		r.cond.Wait()
+		r.inputCond.Wait()
 	}
 
 	if r.isClosed {
@@ -109,7 +111,8 @@ func (r *Runner) worker(id int) {
 		r.pendingTasks[taskID] = result
 		//		r.mutex.Unlock()
 
-		r.cond.Broadcast()
+		//		r.cond.Broadcast()
+		r.outputCond.Signal()
 	}
 }
 
@@ -123,10 +126,7 @@ func (r *Runner) startWorkers() {
 
 func (r *Runner) waitForResults() {
 
-	// Wait for task to be done
 	for !r.isClosed {
-
-		r.mutex.Lock()
 
 		// Next position
 		cur := r.start + 1
@@ -134,11 +134,16 @@ func (r *Runner) waitForResults() {
 			cur = 0
 		}
 
-		// Check if task is done
-		if r.controlTable[cur] != StateDone {
-			r.cond.Wait()
+		r.mutex.Lock()
+
+		// Waiting for task to be done
+		for r.controlTable[cur] != StateDone && !r.isClosed {
+			r.outputCond.Wait()
+		}
+
+		if r.isClosed {
 			r.mutex.Unlock()
-			continue
+			break
 		}
 
 		r.mutex.Unlock()
@@ -163,7 +168,7 @@ func (r *Runner) subscribe() {
 		r.mutex.Lock()
 		r.pendingCount--
 		r.mutex.Unlock()
-		r.cond.Broadcast()
+		r.inputCond.Signal()
 	}
 }
 
