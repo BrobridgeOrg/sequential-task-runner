@@ -64,32 +64,35 @@ func TestRunner_Workers(t *testing.T) {
 	wg.Wait()
 
 	for i := 0; i < 100; i++ {
-		state := runner.controlTable[i]
-		assert.Equal(t, StateDone, state)
+		//state := runner.controlTable[i]
+		//assert.Equal(t, StateDone, state)
+		assert.Equal(t, StateDone, runner.tasks[i].State)
 	}
 }
 
 func TestRunner_Subscribe(t *testing.T) {
 
-	targetTaskCount := 1000000
+	targetTaskCount := 5000000
 
 	var wg sync.WaitGroup
 
 	// Create a new runner
 	runner := NewRunner(
 		WithWorkerCount(4),
-		WithMaxPendingCount(100),
+		WithMaxPendingCount(1024),
 		WithWorkerHandler(func(workerID int, task interface{}) interface{} {
-			return task
+			return task.(int) + 1
 		}),
 	)
 	defer runner.Close()
 
 	expected := 0
 	err := runner.Subscribe(func(result interface{}) {
-		assert.Equal(t, expected, result)
 		expected++
-		//t.Logf("Task %d finished", result)
+		assert.Equal(t, expected, result)
+		if expected%100000 == 0 {
+			t.Logf("Task %d finished", result)
+		}
 		wg.Done()
 	})
 	if !assert.Nil(t, err) {
@@ -133,7 +136,7 @@ func TestRunner_UnsteadyHandler(t *testing.T) {
 	err := runner.Subscribe(func(result interface{}) {
 		assert.Equal(t, expected, result)
 		expected++
-		//t.Logf("Task %d finished", result.(int)+1)
+		t.Logf("Task %d finished", result.(int)+1)
 		wg.Done()
 	})
 	if !assert.Nil(t, err) {
@@ -200,13 +203,14 @@ func TestRunner_UnsteadyHandler_And_SlowOutput(t *testing.T) {
 
 	var wg sync.WaitGroup
 
+	rand.Seed(time.Now().UnixNano())
+
 	// Create a new runner
 	runner := NewRunner(
 		WithWorkerCount(4),
 		WithMaxPendingCount(10),
 		WithWorkerHandler(func(workerID int, task interface{}) interface{} {
-			rand.Seed(time.Now().UnixNano())
-			time.Sleep(time.Duration(rand.Intn(10)) * time.Millisecond)
+			time.Sleep(time.Duration(rand.Intn(3)) * time.Millisecond)
 			return task
 		}),
 	)
@@ -217,8 +221,7 @@ func TestRunner_UnsteadyHandler_And_SlowOutput(t *testing.T) {
 		// Sequential output
 		assert.Equal(t, expected, result)
 		expected++
-		rand.Seed(time.Now().UnixNano())
-		time.Sleep(time.Duration(rand.Intn(10)) * time.Millisecond)
+		time.Sleep(time.Duration(rand.Intn(3)) * time.Millisecond)
 		wg.Done()
 	})
 	if !assert.Nil(t, err) {

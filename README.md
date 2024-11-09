@@ -12,18 +12,18 @@ goos: darwin
 goarch: amd64
 pkg: github.com/BrobridgeOrg/sequential-task-runner
 cpu: Intel(R) Core(TM) i9-9880H CPU @ 2.30GHz
-Benchmark_Baseline_SingleWorker_BufferSize128-4       	 3330404	       359.8 ns/op	       0 B/op	       0 allocs/op
-Benchmark_Baseline_SingleWorker_BufferSize2048-4      	 3028326	       411.5 ns/op	       0 B/op	       0 allocs/op
-Benchmark_Worker4_BufferSize2048-4                    	 2455048	       485.7 ns/op	       0 B/op	       0 allocs/op
-Benchmark_SingleWorker_BufferSize10240-4              	 3149592	       390.4 ns/op	       0 B/op	       0 allocs/op
-Benchmark_Worker4_BufferSize10240-4                   	 2526714	       474.1 ns/op	       0 B/op	       0 allocs/op
-Benchmark_SingleWorker_BufferSize2048_SlowHandler-4   	    1054	   1139250 ns/op	       0 B/op	       0 allocs/op
-Benchmark_Worker4_BufferSize2048_SlowHandler-4        	    4285	    283941 ns/op	       0 B/op	       0 allocs/op
-Benchmark_Worker8_BufferSize2048_SlowHandler-4        	    8194	    142029 ns/op	       0 B/op	       0 allocs/op
-Benchmark_Worker16_BufferSize2048_SlowHandler-4       	   16828	     71124 ns/op	       0 B/op	       0 allocs/op
-Benchmark_Worker4_BufferSize4096_SlowHandler-4        	    4290	    284935 ns/op	       0 B/op	       0 allocs/op
+Benchmark_Baseline_SingleWorker_BufferSize128-4       	 3502114	       340.8 ns/op	       0 B/op	       0 allocs/op
+Benchmark_Baseline_SingleWorker_BufferSize2048-4      	 3495802	       338.6 ns/op	       0 B/op	       0 allocs/op
+Benchmark_Worker4_BufferSize2048-4                    	 2910336	       419.7 ns/op	       0 B/op	       0 allocs/op
+Benchmark_SingleWorker_BufferSize10240-4              	 3402405	       346.1 ns/op	       0 B/op	       0 allocs/op
+Benchmark_Worker4_BufferSize10240-4                   	 2834820	       404.7 ns/op	       0 B/op	       0 allocs/op
+Benchmark_SingleWorker_BufferSize2048_SlowHandler-4   	    1050	   1146070 ns/op	       0 B/op	       0 allocs/op
+Benchmark_Worker4_BufferSize2048_SlowHandler-4        	    4275	    285961 ns/op	       0 B/op	       0 allocs/op
+Benchmark_Worker8_BufferSize2048_SlowHandler-4        	    7954	    143237 ns/op	       0 B/op	       0 allocs/op
+Benchmark_Worker16_BufferSize2048_SlowHandler-4       	   16732	     71724 ns/op	       0 B/op	       0 allocs/op
+Benchmark_Worker4_BufferSize4096_SlowHandler-4        	    4270	    286049 ns/op	       0 B/op	       0 allocs/op
 PASS
-ok  	github.com/BrobridgeOrg/sequential-task-runner	28.183s
+ok  	github.com/BrobridgeOrg/sequential-task-runner	33.142s
 ```
 
 ## License

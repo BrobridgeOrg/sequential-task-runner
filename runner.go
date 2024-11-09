@@ -7,34 +7,25 @@ import (
 
 type State int64
 
-const (
-	StateIdle State = iota
-	StateReady
-	StateRunning
-	StateDone
-)
-
 var (
 	ErrInvalidHandler = errors.New("str: invalid handler")
-	ErrTimeout        = errors.New("str: timeout")
 	ErrClosed         = errors.New("str: closed")
 )
 
 type Runner struct {
 	options      *Options
 	pendingCount int
-	start        int
 	end          int
 	pending      chan int
 	output       chan interface{}
-	controlTable []State
-	pendingTasks []interface{}
+	tasks        []*Task
 	fn           func(interface{})
 
-	inputCond  *sync.Cond
-	outputCond *sync.Cond
-	mutex      sync.Mutex
-	isClosed   bool
+	inputCond   *sync.Cond
+	outputCond  *sync.Cond
+	mutex       sync.Mutex
+	outputMutex sync.Mutex
+	isClosed    bool
 }
 
 func NewRunner(opts ...Option) *Runner {
@@ -48,28 +39,50 @@ func NewRunner(opts ...Option) *Runner {
 	r := &Runner{
 		options:      options,
 		pendingCount: 0,
-		start:        -1,
 		end:          -1,
+		tasks:        make([]*Task, options.MaxPendingCount),
 		pending:      make(chan int, options.MaxPendingCount),
 		output:       make(chan interface{}, options.MaxPendingCount),
-		controlTable: make([]State, options.MaxPendingCount),
-		pendingTasks: make([]interface{}, options.MaxPendingCount),
 		isClosed:     false,
 	}
 
+	for i := 0; i < options.MaxPendingCount; i++ {
+		r.tasks[i] = &Task{}
+	}
+
 	r.inputCond = sync.NewCond(&r.mutex)
-	r.outputCond = sync.NewCond(&r.mutex)
+	r.outputCond = sync.NewCond(&r.outputMutex)
 
 	return r
 }
 
-func (r *Runner) produce(task interface{}) {
+func (r *Runner) updateLastPosition() int {
 
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
+	r.outputCond.L.Lock()
+	defer r.outputCond.L.Unlock()
+
+	end := r.end + 1
+	if end == r.options.MaxPendingCount {
+		end = 0
+	}
+
+	//fmt.Println("updateLastPosition", end)
+
+	r.end = end
+
+	// Notify for the end position change
+	r.outputCond.Signal()
+
+	return end
+}
+
+func (r *Runner) produce(data interface{}) {
+
+	r.inputCond.L.Lock()
+	defer r.inputCond.L.Unlock()
 
 	// Wait for a slot to be available
-	for r.pendingCount+1 > r.options.MaxPendingCount && !r.isClosed {
+	for r.pendingCount == r.options.MaxPendingCount && !r.isClosed {
 		r.inputCond.Wait()
 	}
 
@@ -77,19 +90,17 @@ func (r *Runner) produce(task interface{}) {
 		return
 	}
 
-	// Add task to pending list
-	r.end++
-	if r.end == r.options.MaxPendingCount {
-		r.end = 0
-	}
-
-	r.pendingTasks[r.end] = task
-	r.controlTable[r.end] = StateReady
-
 	r.pendingCount++
 
+	// Add task to pending list
+	end := r.updateLastPosition()
+
+	r.tasks[end].Update(StateReady, data)
+
+	//	fmt.Println("produce", r.end, data)
+
 	// push to queue
-	r.pending <- r.end
+	r.pending <- end
 }
 
 func (r *Runner) worker(id int) {
@@ -97,24 +108,19 @@ func (r *Runner) worker(id int) {
 	for taskID := range r.pending {
 
 		// Getting task
-		//		r.mutex.Lock()
-		r.controlTable[taskID] = StateRunning
-		task := r.pendingTasks[taskID]
-		//		r.mutex.Unlock()
+		task := r.tasks[taskID]
+		task.SetState(StateRunning)
+
+		data := task.Data
 
 		// execute task
-		result := r.options.WorkerHandler(id, task)
+		//fmt.Println("worker", id, "task", taskID)
+		result := r.options.WorkerHandler(id, data)
 
 		// Store result
-		//		r.mutex.Lock()
-		r.controlTable[taskID] = StateDone
-		r.pendingTasks[taskID] = result
-		//		r.mutex.Unlock()
+		task.Update(StateDone, result)
 
-		//		r.cond.Broadcast()
-		r.mutex.Lock()
 		r.outputCond.Signal()
-		r.mutex.Unlock()
 	}
 }
 
@@ -128,35 +134,39 @@ func (r *Runner) startWorkers() {
 
 func (r *Runner) waitForResults() {
 
+	go r.subscribe()
+
+	r.outputCond.L.Lock()
+	defer r.outputCond.L.Unlock()
+
+	cur := -1
+
 	for !r.isClosed {
 
 		// Next position
-		cur := r.start + 1
-		if cur == r.options.MaxPendingCount {
-			cur = 0
+		nextPos := cur + 1
+		if nextPos == r.options.MaxPendingCount {
+			nextPos = 0
 		}
 
-		r.mutex.Lock()
-
-		// Waiting for task to be done
-		for r.controlTable[cur] != StateDone && !r.isClosed {
+		// No more results
+		for r.tasks[nextPos].State != StateDone && !r.isClosed {
 			r.outputCond.Wait()
 		}
 
 		if r.isClosed {
-			r.mutex.Unlock()
 			break
 		}
 
-		r.mutex.Unlock()
+		cur = nextPos
 
-		r.start = cur
+		task := r.tasks[cur]
 
-		result := r.pendingTasks[r.start]
+		result := task.Data
+		//fmt.Println("waitForResults reset", "cur", cur, "end", r.end, "state", task.State, StateDone)
 
-		// Remove task from pending list
-		r.pendingTasks[r.start] = nil
-		r.controlTable[r.start] = StateIdle
+		// Clear
+		task.Reset()
 
 		// Publish result
 		r.output <- result
@@ -167,10 +177,11 @@ func (r *Runner) subscribe() {
 	for result := range r.output {
 		r.fn(result)
 
-		r.mutex.Lock()
+		r.inputCond.L.Lock()
 		r.pendingCount--
+		r.inputCond.L.Unlock()
+
 		r.inputCond.Signal()
-		r.mutex.Unlock()
 	}
 }
 
@@ -191,7 +202,6 @@ func (r *Runner) Subscribe(fn func(interface{})) error {
 	r.startWorkers()
 
 	go r.waitForResults()
-	go r.subscribe()
 
 	return nil
 }
