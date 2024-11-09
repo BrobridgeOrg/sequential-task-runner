@@ -79,7 +79,7 @@ func TestRunner_Subscribe(t *testing.T) {
 	// Create a new runner
 	runner := NewRunner(
 		WithWorkerCount(4),
-		WithMaxPendingCount(1024),
+		WithMaxPendingCount(10),
 		WithWorkerHandler(func(workerID int, task interface{}) interface{} {
 			return task.(int) + 1
 		}),

@@ -58,9 +58,6 @@ func NewRunner(opts ...Option) *Runner {
 
 func (r *Runner) updateLastPosition() int {
 
-	r.outputCond.L.Lock()
-	defer r.outputCond.L.Unlock()
-
 	end := r.end + 1
 	if end == r.options.MaxPendingCount {
 		end = 0
@@ -71,7 +68,9 @@ func (r *Runner) updateLastPosition() int {
 	r.end = end
 
 	// Notify for the end position change
+	r.outputCond.L.Lock()
 	r.outputCond.Signal()
+	r.outputCond.L.Unlock()
 
 	return end
 }
@@ -111,16 +110,16 @@ func (r *Runner) worker(id int) {
 		task := r.tasks[taskID]
 		task.SetState(StateRunning)
 
-		data := task.Data
-
 		// execute task
 		//fmt.Println("worker", id, "task", taskID)
-		result := r.options.WorkerHandler(id, data)
+		result := r.options.WorkerHandler(id, task.Data)
 
 		// Store result
 		task.Update(StateDone, result)
 
+		r.outputCond.L.Lock()
 		r.outputCond.Signal()
+		r.outputCond.L.Unlock()
 	}
 }
 
@@ -144,13 +143,13 @@ func (r *Runner) waitForResults() {
 	for !r.isClosed {
 
 		// Next position
-		nextPos := cur + 1
-		if nextPos == r.options.MaxPendingCount {
-			nextPos = 0
+		cur++
+		if cur == r.options.MaxPendingCount {
+			cur = 0
 		}
 
 		// No more results
-		for r.tasks[nextPos].State != StateDone && !r.isClosed {
+		for r.tasks[cur].State != StateDone && !r.isClosed {
 			r.outputCond.Wait()
 		}
 
@@ -158,15 +157,10 @@ func (r *Runner) waitForResults() {
 			break
 		}
 
-		cur = nextPos
-
 		task := r.tasks[cur]
 
-		result := task.Data
+		result := task.Drain()
 		//fmt.Println("waitForResults reset", "cur", cur, "end", r.end, "state", task.State, StateDone)
-
-		// Clear
-		task.Reset()
 
 		// Publish result
 		r.output <- result
@@ -179,9 +173,8 @@ func (r *Runner) subscribe() {
 
 		r.inputCond.L.Lock()
 		r.pendingCount--
-		r.inputCond.L.Unlock()
-
 		r.inputCond.Signal()
+		r.inputCond.L.Unlock()
 	}
 }
 
@@ -218,9 +211,6 @@ func (r *Runner) AddTask(task interface{}) error {
 }
 
 func (r *Runner) Close() error {
-
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
 
 	if r.isClosed {
 		return nil

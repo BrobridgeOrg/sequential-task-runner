@@ -25,3 +25,8 @@ func (t *Task) Update(state State, data interface{}) {
 	t.Data = data
 	t.State = state
 }
+
+func (t *Task) Drain() interface{} {
+	defer t.Reset()
+	return t.Data
+}
